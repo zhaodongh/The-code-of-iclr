@@ -1,0 +1,30 @@
+Train the model
+
+# python3 train.py -data data/multi30k.atok.low.pt -save_model trained -save_mode best -proj_share_weight -label_smoothing
+
+Text the model 
+
+# python3 translate.py -model trained.chkpt -vocab data/multi.low.pt -src data/test.en.src
+
+Some useful tools
+#The example below uses the Moses tokenizer (http://www.statmt.org/moses/) to prepare the data and the moses BLEU script for evaluation.
+
+wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/tokenizer/tokenizer.perl
+wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/share/nonbreaking_prefixes/nonbreaking_prefix.de
+wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/share/nonbreaking_prefixes/nonbreaking_prefix.en
+sed -i "s/$RealBin\/..\/share\/nonbreaking_prefixes//" tokenizer.perl
+wget https://raw.githubusercontent.com/moses-smt/mosesdecoder/master/scripts/generic/multi-bleu.perl
+
+1) Preprocess the data
+
+for l in en de; do for f in data/multi30k/*.$l; do if [[ "$f" != *"test"* ]]; then sed -i "$ d" $f; fi;  done; done
+for l in en de; do for f in data/multi30k/*.$l; do perl tokenizer.perl -a -no-escape -l $l -q  < $f > $f.atok; done; done
+python3 preprocess.py -train_src data/multi30k/train.en.atok -train_tgt data/multi30k/train.de.atok -valid_src data/multi30k/val.en.atok -valid_tgt data/multi30k/val.de.atok -save_data data/multi30k.atok.low.pt
+
+2) Train the Model
+CUDA_VISIBLE_DEVICES=1 python3 train.py -data data/multi30k.atok.low.pt -save_model trained -save_mode best -proj_share_weight -label_smoothing
+
+3) Test the model
+CUDA_VISIBLE_DEVICES=1 python3 translate.py -model trained.chkpt -vocab data/multi30k.atok.low.pt -src data/multi30k/test.en.atok -no_cuda
+4) compute the BLEU.
+CUDA_VISIBLE_DEVICES=1 perl benchmark/multi-bleu.perl reference.txt < predictions.txt
